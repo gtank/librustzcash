@@ -33,7 +33,7 @@ use blake2_rfc::blake2s::Blake2s;
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use rand::{OsRng, Rng};
+use rand::{OsRng, Rng, Rand};
 use std::io::BufReader;
 
 use libc::{c_char, c_uchar, int64_t, size_t, uint32_t, uint64_t};
@@ -1018,4 +1018,113 @@ pub extern "system" fn librustzcash_sprout_verify(
         // Any other case
         _ => false,
     }
+}
+
+pub struct SaplingProvingContext {
+    bsk: Fs,
+}
+
+#[no_mangle]
+pub extern "system" fn librustzcash_sapling_output_proof(
+    ctx: *mut SaplingProvingContext,
+    esk: *const [c_uchar; 32],
+    diversifier: *const [c_uchar; 11],
+    pk_d: *const [c_uchar; 32],
+    rcm: *const [c_uchar; 32],
+    value: uint64_t,
+    cv: *mut [c_uchar; 32],
+    zkproof: *mut [c_uchar; GROTH_PROOF_SIZE]
+) -> bool
+{
+    let esk = match Fs::from_repr(read_fs(&(unsafe { &*esk })[..])) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+
+    let diversifier = sapling_crypto::primitives::Diversifier(unsafe { *diversifier });
+
+    let pk_d = match edwards::Point::<Bls12, Unknown>::read(&(unsafe { &*pk_d })[..], &JUBJUB) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+
+    let pk_d = match pk_d.as_prime_order(&JUBJUB) {
+        Some(p) => p,
+        None => return false
+    };
+
+    let payment_address = sapling_crypto::primitives::PaymentAddress {
+        pk_d: pk_d,
+        diversifier: diversifier
+    };
+
+    // Initialize secure RNG
+    let mut rng = OsRng::new().expect("should be able to construct RNG");
+
+    let rcm = match Fs::from_repr(read_fs(&(unsafe { &*rcm })[..])) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+
+    // TODO: TODO !!!!
+    let rcv = Fs::rand(&mut rng);
+
+    // BOH!
+    // Accumulate the value commitment in the context
+    {
+        let mut tmp = rcv.clone();
+        tmp.negate(); // Outputs subtract from the total.
+        tmp.add_assign(&unsafe { &*ctx }.bsk);
+
+        // Update the context
+        unsafe { &mut *ctx }.bsk = tmp;
+    }
+
+    let value_commitment = sapling_crypto::primitives::ValueCommitment::<Bls12> {
+        value: value,
+        randomness: rcv
+    };
+
+    let instance = sapling_crypto::circuit::sapling::Output {
+        params: &*JUBJUB,
+        value_commitment: Some(value_commitment.clone()),
+        payment_address: Some(payment_address.clone()),
+        commitment_randomness: Some(rcm),
+        esk: Some(esk.clone())
+    };
+
+    // Create proof
+    let proof = create_random_proof(instance, unsafe {SAPLING_OUTPUT_PARAMS.as_ref()}.unwrap(), &mut rng).expect("proving should not fail");
+
+    proof
+        .write(&mut (unsafe { &mut *zkproof })[..])
+        .expect("should be able to serialize a proof");
+
+    value_commitment.cm(&JUBJUB)
+        .write(&mut (unsafe { &mut *cv })[..])
+        .expect("should be able to serialize rcv");
+
+    true
+}
+
+// TODO
+// librustzcash_sapling_spend_sig
+// librustzcash_sapling_proving_input
+// librustzcash_sapling_binding_sig
+
+#[no_mangle]
+pub extern "system" fn librustzcash_sapling_proving_ctx_init(
+) -> *mut SaplingProvingContext {
+    let ctx = Box::new(SaplingProvingContext {
+        bsk: Fs::zero(),
+    });
+
+    Box::into_raw(ctx)
+}
+
+#[no_mangle]
+pub extern "system" fn librustzcash_sapling_proving_ctx_free(
+    ctx: *mut SaplingProvingContext,
+) {
+    drop(unsafe { Box::from_raw(ctx) });
 }

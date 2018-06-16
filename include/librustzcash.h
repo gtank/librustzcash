@@ -60,6 +60,51 @@ extern "C" {
         unsigned char *result
     );
 
+    void librustzcash_sapling_spend_sig(
+        const unsigned char *ask,
+        const unsigned char *ar,
+        const unsigned char *sighash,
+        unsigned char *result
+    );
+
+    /// Creates a Sapling proving context. Please free this when you're done.
+    void * librustzcash_sapling_proving_ctx_init();
+
+    bool librustzcash_sapling_spend_proof(
+        void *ctx,
+        const unsigned char *ak,
+        const unsigned char *nsk,
+        const unsigned char *diversifier,
+        const unsigned char *rcm,
+        const unsigned char *ar,
+        const uint64_t value,
+        const unsigned char *anchor,
+        const unsigned char *witness,
+        unsigned char *cv,
+        unsigned char *zkproof
+    );
+
+    bool librustzcash_sapling_output_proof(
+        void *ctx,
+        const unsigned char *esk,
+        const unsigned char *diversifier,
+        const unsigned char *pk_d,
+        const unsigned char *rcm,
+        const uint64_t value,
+        unsigned char *cv,
+        unsigned char *zkproof,
+    );
+
+    void librustzcash_sapling_binding_sig(
+        void *ctx,
+        const unsigned char *sighash,
+        unsigned char *result
+    );
+
+    /// Frees a Sapling proving context returned from
+    /// `librustzcash_sapling_proving_ctx_init`.
+    void librustzcash_sapling_proving_ctx_free(void *);
+
     /// Creates a Sapling verification context. Please free this
     /// when you're done.
     void * librustzcash_sapling_verification_ctx_init();
