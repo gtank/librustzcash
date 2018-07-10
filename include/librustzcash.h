@@ -81,6 +81,7 @@ extern "C" {
         const unsigned char *anchor,
         const unsigned char *witness,
         unsigned char *cv,
+        unsigned char *rk,
         unsigned char *zkproof
     );
 
@@ -92,6 +93,7 @@ extern "C" {
         const unsigned char *rcm,
         const uint64_t value,
         unsigned char *cv,
+        unsigned char *rcv,
         unsigned char *zkproof,
     );
 

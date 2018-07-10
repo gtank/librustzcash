@@ -1033,6 +1033,7 @@ pub extern "system" fn librustzcash_sapling_output_proof(
     rcm: *const [c_uchar; 32],
     value: uint64_t,
     cv: *mut [c_uchar; 32],
+    rcv_out: *mut [c_uchar; 32], // TODO: better variable names
     zkproof: *mut [c_uchar; GROTH_PROOF_SIZE]
 ) -> bool
 {
@@ -1103,6 +1104,11 @@ pub extern "system" fn librustzcash_sapling_output_proof(
     value_commitment.cm(&JUBJUB)
         .write(&mut (unsafe { &mut *cv })[..])
         .expect("should be able to serialize rcv");
+
+    let rcv_out = unsafe { &mut *rcv_out };
+    rcv.into_repr()
+        .write_le(&mut rcv_out[..])
+        .expect("rcv_out must be 32 bytes");
 
     true
 }
