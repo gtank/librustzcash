@@ -60,7 +60,7 @@ extern "C" {
         unsigned char *result
     );
 
-    void librustzcash_sapling_spend_sig(
+    bool librustzcash_sapling_spend_sig(
         const unsigned char *ask,
         const unsigned char *ar,
         const unsigned char *sighash,

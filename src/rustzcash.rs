@@ -1113,9 +1113,44 @@ pub extern "system" fn librustzcash_sapling_output_proof(
     true
 }
 
+#[no_mangle]
+pub extern "system" fn librustzcash_sapling_spend_sig(
+    ask: *const [c_uchar; 32],
+    ar: *const [c_uchar; 32],
+    sighash: *const [c_uchar; 32],
+    result: *mut [c_uchar; 64],
+) -> bool {
+
+    // Deserialize the randomizer
+    let ar = match Fs::from_repr(read_fs(&(unsafe { &*ar })[..])) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+
+    let ask = match redjubjub::PrivateKey::<Bls12>::read(&(unsafe { &*ask })[..]) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+    let rsk = ask.randomize(ar);
+
+    let rk = redjubjub::PublicKey::from_private(&rsk, FixedGenerators::SpendingKeyGenerator, &JUBJUB);
+
+    // Compute the signature's message for rk/spend_auth_sig
+    let mut data_to_be_signed = [0u8; 64];
+    rk.0.write(&mut data_to_be_signed[0..32]).expect("message buffer should be 32 bytes");
+    (&mut data_to_be_signed[32..64]).copy_from_slice(&(unsafe { &*sighash })[..]);
+
+    // Do the signing
+    let mut rng = OsRng::new().expect("should be able to construct RNG");
+    let sig = rsk.sign(&data_to_be_signed, &mut rng, FixedGenerators::SpendingKeyGenerator, &JUBJUB);
+
+    sig.write(&mut(unsafe { &mut *result })[..]).expect("result should be 64 bytes");
+
+    true
+}
+
 // TODO
-// librustzcash_sapling_spend_sig
-// librustzcash_sapling_proving_input
+// librustzcash_sapling_spend_proof
 // librustzcash_sapling_binding_sig
 
 #[no_mangle]
