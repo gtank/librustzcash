@@ -93,7 +93,6 @@ extern "C" {
         const unsigned char *rcm,
         const uint64_t value,
         unsigned char *cv,
-        unsigned char *rcv,
         unsigned char *zkproof,
     );
 

@@ -1033,7 +1033,6 @@ pub extern "system" fn librustzcash_sapling_output_proof(
     rcm: *const [c_uchar; 32],
     value: uint64_t,
     cv: *mut [c_uchar; 32],
-    rcv_out: *mut [c_uchar; 32], // TODO: better variable names
     zkproof: *mut [c_uchar; GROTH_PROOF_SIZE]
 ) -> bool
 {
@@ -1105,11 +1104,6 @@ pub extern "system" fn librustzcash_sapling_output_proof(
         .write(&mut (unsafe { &mut *cv })[..])
         .expect("should be able to serialize rcv");
 
-    let rcv_out = unsafe { &mut *rcv_out };
-    rcv.into_repr()
-        .write_le(&mut rcv_out[..])
-        .expect("rcv_out must be 32 bytes");
-
     true
 }
 
@@ -1149,9 +1143,28 @@ pub extern "system" fn librustzcash_sapling_spend_sig(
     true
 }
 
+#[no_mangle]
+pub extern "system" fn librustzcash_sapling_binding_sig(
+    ctx: *mut SaplingProvingContext,
+    sighash: *const [c_uchar; 32],
+    result: *mut [c_uchar; 64],
+) {
+    let bsk = redjubjub::PrivateKey::<Bls12>(unsafe { &*ctx }.bsk);
+    let bvk = redjubjub::PublicKey::from_private(&bsk, FixedGenerators::ValueCommitmentRandomness, &JUBJUB);
+
+    let mut data_to_be_signed = [0u8; 64];
+    bvk.0.write(&mut data_to_be_signed[0..32]).expect("message buffer should be 32 bytes");
+    (&mut data_to_be_signed[32..64]).copy_from_slice(&(unsafe { &*sighash })[..]);
+
+    let mut rng = OsRng::new().expect("should be able to construct RNG");
+    let sig = bsk.sign(&data_to_be_signed, &mut rng, FixedGenerators::ValueCommitmentRandomness, &JUBJUB);
+
+    sig.write(&mut(unsafe { &mut *result })[..]).expect("result should be 64 bytes");
+}
+
+
 // TODO
 // librustzcash_sapling_spend_proof
-// librustzcash_sapling_binding_sig
 
 #[no_mangle]
 pub extern "system" fn librustzcash_sapling_proving_ctx_init(
