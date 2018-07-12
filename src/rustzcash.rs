@@ -23,6 +23,8 @@ use sapling_crypto::{
 };
 
 use sapling_crypto::circuit::sprout::{self, TREE_DEPTH as SPROUT_TREE_DEPTH};
+// TODO: make these consistent
+const SAPLING_TREE_DEPTH: usize = 32;
 
 use bellman::groth16::{
     create_random_proof, prepare_verifying_key, verify_proof, Parameters, PreparedVerifyingKey,
@@ -41,7 +43,7 @@ use std::ffi::CStr;
 use std::fs::File;
 use std::slice;
 
-use sapling_crypto::primitives::ViewingKey;
+use sapling_crypto::primitives::{ValueCommitment, ViewingKey, ProofGenerationKey};
 
 pub mod equihash;
 
@@ -1162,9 +1164,150 @@ pub extern "system" fn librustzcash_sapling_binding_sig(
     sig.write(&mut(unsafe { &mut *result })[..]).expect("result should be 64 bytes");
 }
 
+#[no_mangle]
+pub extern "system" fn librustzcash_sapling_spend_proof(
+    ctx: *mut SaplingProvingContext,
+    ak: *const [c_uchar; 32],
+    nsk: *const [c_uchar; 32],
+    diversifier: *const [c_uchar; 11],
+    rcm: *const [c_uchar; 32],
+    ar: *const [c_uchar; 32],
+    value: uint64_t,
+    anchor: *const [c_uchar; 32],
+    witness: *const [c_uchar; 1 + 33 * SAPLING_TREE_DEPTH + 8],
+    cv: *mut [c_uchar; 32],
+    rk_out: *mut [c_uchar; 32],
+    zkproof: *mut [c_uchar; GROTH_PROOF_SIZE],
+) -> bool {
+    let mut rng = OsRng::new().expect("should be able to construct RNG");
 
-// TODO
-// librustzcash_sapling_spend_proof
+    let rcv = Fs::rand(&mut rng);
+
+    // Accumulate the value commitment in the context
+    {
+        let mut tmp = rcv.clone();
+        tmp.add_assign(&unsafe { &*ctx }.bsk);
+
+        // Update the context
+        unsafe { &mut *ctx }.bsk = tmp;
+    }
+
+    let value_commitment = ValueCommitment::<Bls12> {
+        value: value,
+        randomness: rcv,
+    };
+
+    value_commitment.cm(&JUBJUB)
+        .write(&mut unsafe { &mut *cv }[..])
+        .expect("should be able to serialize cv");
+
+
+
+    let ak = match edwards::Point::<Bls12, Unknown>::read(&(unsafe { &*ak })[..], &JUBJUB) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+
+    let ak = match ak.as_prime_order(&JUBJUB) {
+        Some(p) => p,
+        None => return false,
+    };
+
+    let nsk = match Fs::from_repr(read_fs(&(unsafe { &*nsk })[..])) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+
+    let proof_generation_key = ProofGenerationKey {
+        ak: ak.clone(),
+        nsk,
+    };
+    let viewing_key = proof_generation_key.into_viewing_key(&JUBJUB);
+    let diversifier = sapling_crypto::primitives::Diversifier(unsafe { *diversifier });
+    let payment_address = match viewing_key.into_payment_address(diversifier, &JUBJUB) {
+        Some(p) => p,
+        None => return false,
+    };
+
+    let rcm = match Fs::from_repr(read_fs(&(unsafe { &*rcm })[..])) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+
+    let ar = match Fs::from_repr(read_fs(&(unsafe { &*ar })[..])) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+
+    let rk = redjubjub::PublicKey::<Bls12>(ak.into()).randomize(ar, FixedGenerators::SpendingKeyGenerator, &JUBJUB);
+
+    rk.write(&mut unsafe { &mut *rk_out }[..]).expect("should be able to write to rk_out");
+
+    let anchor = match Fr::from_repr(read_le(unsafe { &(&*anchor)[..] })) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+
+    let mut witness = unsafe { &(&*witness)[..] };
+
+    // skip the first byte
+    assert_eq!(witness[0], SAPLING_TREE_DEPTH as u8);
+    witness = &witness[1..];
+
+    let mut auth_path = vec![None; SAPLING_TREE_DEPTH];
+
+    for i in (0..SAPLING_TREE_DEPTH).rev() {
+        // skip length of inner vector
+        assert_eq!(witness[0], 32); // the length of a pedersen hash
+        witness = &witness[1..];
+
+        let mut sibling = [0u8; 32];
+        sibling.copy_from_slice(&witness[0..32]);
+        witness = &witness[32..];
+
+        let sibling = match Fr::from_repr(read_le(&sibling)) {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
+
+        auth_path[i] = Some((sibling, false));
+    }
+
+    {
+        let mut position = witness
+            .read_u64::<LittleEndian>()
+            .expect("should have had index at the end");
+
+        for i in 0..SAPLING_TREE_DEPTH {
+            auth_path[i].as_mut().map(|p| p.1 = (position & 1) == 1);
+
+            position >>= 1;
+        }
+    }
+
+    assert_eq!(witness.len(), 0);
+
+    let instance = sapling_crypto::circuit::sapling::Spend {
+        params: &*JUBJUB,
+        value_commitment: Some(value_commitment),
+        proof_generation_key: Some(proof_generation_key),
+        payment_address: Some(payment_address),
+        commitment_randomness: Some(rcm),
+        ar: Some(ar),
+        auth_path: auth_path,
+        anchor: Some(anchor),
+    };
+
+    // Create proof
+    let proof = create_random_proof(instance, unsafe {SAPLING_SPEND_PARAMS.as_ref()}.unwrap(), &mut rng).expect("proving should not fail");
+
+    proof
+        .write(&mut (unsafe { &mut *zkproof })[..])
+        .expect("should be able to serialize a proof");
+
+    true
+}
+
 
 #[no_mangle]
 pub extern "system" fn librustzcash_sapling_proving_ctx_init(
