@@ -9,6 +9,7 @@ extern crate zcash_proofs;
 extern crate zip32;
 
 mod account;
+mod chain;
 mod keystore;
 mod prover;
 mod sender;
