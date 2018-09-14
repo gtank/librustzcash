@@ -6,6 +6,7 @@ authors = [
 ]
 
 [dependencies]
+bech32 = "0.5"
 failure = "0.1"
 pairing = { path = "../pairing" }
 rand = "0.4"
