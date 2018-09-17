@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use chain::ChainManager;
 use constants::COIN_TYPE_TEST;
 use keystore::LocalKeyStore;
-use prover::MockTxProver;
+use prover::{LocalTxProver, MockTxProver};
 use sender::MockTxSender;
 use types::{KeyStore, TxProver, TxSender};
 use Wallet;
@@ -43,6 +43,22 @@ impl Builder {
     pub fn chain_sync(mut self, csd: SocketAddr) -> Self {
         self.csd = Some(csd);
         self
+    }
+
+    /// Make transaction proofs with this device using on-disk parameters.
+    pub fn local_tx_prover(
+        self,
+        spend_path: &str,
+        spend_hash: &str,
+        output_path: &str,
+        output_hash: &str,
+    ) -> Self {
+        self.tx_prover(Box::new(LocalTxProver::new(
+            spend_path,
+            spend_hash,
+            output_path,
+            output_hash,
+        )))
     }
 
     /// Configure the transaction proof generator.
