@@ -22,5 +22,8 @@ pub mod transaction;
 pub mod types;
 mod wallet;
 
+#[cfg(test)]
+mod tests;
+
 pub use builder::Builder;
 pub use wallet::Wallet;
