@@ -7,6 +7,7 @@ use zcash_primitives::transaction::{Transaction, TxId};
 use zcash_proofs::sapling::CommitmentTreeWitness;
 
 mod builder;
+mod note;
 
 pub use self::builder::Builder;
 
