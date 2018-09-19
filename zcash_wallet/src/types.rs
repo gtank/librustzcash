@@ -36,7 +36,13 @@ pub trait KeyStore {
 }
 
 /// Handles block chain state and synchronisation.
-pub trait ChainState {}
+///
+/// Produces a stream of [Either<block hash, block header>, Vec<compact transactions>]
+/// How to handle rollbacks?
+pub trait ChainState {
+    /// Returns the consensus branch ID for the current network epoch.
+    fn consensus_branch_id(&self) -> u32;
+}
 
 /// Interface for creating zero-knowledge proofs for shielded transactions.
 pub trait TxProver {
@@ -76,6 +82,7 @@ pub trait TxProver {
 }
 
 /// The result of trying to send a transaction.
+#[derive(Debug, PartialEq)]
 pub enum SendResult {
     /// The transaction has definitely reached the network, and is currently in
     /// the mempool.

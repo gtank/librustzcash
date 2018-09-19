@@ -52,18 +52,19 @@ impl TxProver for LocalTxProver {
         ),
         Error,
     > {
-        let (proof, cv, rk) = ctx.spend_proof(
-            proof_generation_key,
-            diversifier,
-            rcm,
-            ar,
-            value,
-            anchor,
-            witness,
-            &self.spend_params,
-            &self.spend_vk,
-            &JUBJUB,
-        ).map_err(|_| format_err!("Error while creating spend proof"))?;
+        let (proof, cv, rk) = ctx
+            .spend_proof(
+                proof_generation_key,
+                diversifier,
+                rcm,
+                ar,
+                value,
+                anchor,
+                witness,
+                &self.spend_params,
+                &self.spend_vk,
+                &JUBJUB,
+            ).map_err(|_| format_err!("Error while creating spend proof"))?;
 
         let mut zkproof = [0u8; GROTH_PROOF_SIZE];
         proof

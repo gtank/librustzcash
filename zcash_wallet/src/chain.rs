@@ -12,4 +12,9 @@ impl ChainManager {
     }
 }
 
-impl ChainState for ChainManager {}
+impl ChainState for ChainManager {
+    fn consensus_branch_id(&self) -> u32 {
+        // TODO: Don't just return Sapling
+        0x76b809bb
+    }
+}
