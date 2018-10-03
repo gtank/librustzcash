@@ -20,6 +20,8 @@ use super::Memo;
 use account::AccountId;
 use types::{KeyStore, TxProver};
 
+use super::note::SaplingNoteEncryption;
+
 const DEFAULT_FEE: Amount = Amount(10000);
 
 struct SpendDescriptionInfo {
@@ -223,24 +225,17 @@ impl Builder {
 
         // Create Sapling OutputDescriptions
         for output in self.outputs {
-            // let note_plaintext = (output.note, output.memo);
-
-            // let enc = note_plaintext.encrypt(output.note.pk_d)?;
-            // let encryptor = enc.second;
-            let esk = Fs::rand(&mut rng); //encryptor.get_esk();
+            let encryptor = SaplingNoteEncryption::new(output.note.g_d);
 
             let (zkproof, cv) =
-                prover.output_proof(&mut ctx, esk, output.to, output.note.r, output.note.value);
+                prover.output_proof(&mut ctx, encryptor.esk().clone(), output.to, output.note.r, output.note.value);
 
             let cmu = output.note.cm(&JUBJUB);
-            let ephemeral_key = JUBJUB
-                .generator(FixedGenerators::SpendingKeyGenerator)
-                .mul(esk, &JUBJUB)
-                .into(); //encryptor.get_epk();
-            let enc_ciphertext = [0u8; 580]; //enc.first;
 
-            // let out_plaintext = (output.note.pk_d, esk);
-            let out_ciphertext = [0u8; 80]; //out_plaintext.encrypt(output.ovk, cv, cmu, encryptor);
+            let enc_ciphertext = encryptor.encrypt_note_plaintext(output.to.diversifier, output.note.value, output.note.r, output.memo);
+            let out_ciphertext = encryptor.encrypt_output_plaintext(output.ovk, cv, cmu, encryptor);
+
+            let ephemeral_key = encryptor.epk().clone();
 
             self.mtx.shielded_outputs.push(OutputDescription {
                 cv,
