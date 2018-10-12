@@ -233,7 +233,7 @@ impl Builder {
             let cmu = output.note.cm(&JUBJUB);
 
             let enc_ciphertext = encryptor.encrypt_note_plaintext(output.to.diversifier, output.note.value, output.note.r, output.memo);
-            let out_ciphertext = encryptor.encrypt_output_plaintext(output.ovk, cv, cmu, encryptor);
+            let out_ciphertext = encryptor.encrypt_outgoing_plaintext(output.ovk, cv, cmu);
 
             let ephemeral_key = encryptor.epk().clone();
 

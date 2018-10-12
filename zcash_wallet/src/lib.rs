@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate failure;
+extern crate blake2_rfc;
+extern crate chacha20_poly1305_aead;
 
 extern crate bech32;
 extern crate bellman;
