@@ -3,13 +3,11 @@ use pairing::bls12_381::{Bls12, Fr};
 use rand::{OsRng, Rand};
 use sapling_crypto::{
     jubjub::{fs::Fs, FixedGenerators, JubjubParams},
-    primitives::{Diversifier, Note, PaymentAddress},
-    redjubjub::Signature,
+    primitives::{Diversifier, Note, PaymentAddress}, redjubjub::Signature,
 };
 use zcash_primitives::{
     transaction::{
-        components::{Amount, OutputDescription, SpendDescription},
-        Transaction, TransactionData,
+        components::{Amount, OutputDescription, SpendDescription}, Transaction, TransactionData,
     },
     JUBJUB,
 };
@@ -227,12 +225,22 @@ impl Builder {
         for output in self.outputs {
             let encryptor = SaplingNoteEncryption::new(output.note.g_d);
 
-            let (zkproof, cv) =
-                prover.output_proof(&mut ctx, encryptor.esk().clone(), output.to, output.note.r, output.note.value);
+            let (zkproof, cv) = prover.output_proof(
+                &mut ctx,
+                encryptor.esk().clone(),
+                output.to,
+                output.note.r,
+                output.note.value,
+            );
 
             let cmu = output.note.cm(&JUBJUB);
 
-            let enc_ciphertext = encryptor.encrypt_note_plaintext(output.to.diversifier, output.note.value, output.note.r, output.memo);
+            let enc_ciphertext = encryptor.encrypt_note_plaintext(
+                output.to.diversifier,
+                output.note.value,
+                output.note.r,
+                output.memo,
+            );
             let out_ciphertext = encryptor.encrypt_outgoing_plaintext(output.ovk, cv, cmu);
 
             let ephemeral_key = encryptor.epk().clone();
