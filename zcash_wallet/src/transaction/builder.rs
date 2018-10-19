@@ -223,7 +223,12 @@ impl Builder {
 
         // Create Sapling OutputDescriptions
         for output in self.outputs {
-            let encryptor = SaplingNoteEncryption::new(output.note.g_d);
+            let encryptor = SaplingNoteEncryption::new(
+                output.ovk,
+                output.note.clone(),
+                output.to.clone(),
+                output.memo,
+            );
 
             let (zkproof, cv) = prover.output_proof(
                 &mut ctx,
@@ -235,15 +240,10 @@ impl Builder {
 
             let cmu = output.note.cm(&JUBJUB);
 
-            let enc_ciphertext = encryptor.encrypt_note_plaintext(
-                output.to.diversifier,
-                output.note.value,
-                output.note.r,
-                output.memo,
-            );
-            let out_ciphertext = encryptor.encrypt_outgoing_plaintext(output.ovk, cv, cmu);
+            let enc_ciphertext = encryptor.encrypt_note_plaintext();
+            let out_ciphertext = encryptor.encrypt_outgoing_plaintext(&cv, &cmu);
 
-            let ephemeral_key = encryptor.epk().clone();
+            let ephemeral_key = encryptor.epk().clone().into();
 
             self.mtx.shielded_outputs.push(OutputDescription {
                 cv,
